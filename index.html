@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧校园：新生签到系统 (稳定版)</title>
+    
+    <!-- 外部库 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    
+    <!-- 字体与图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-gradient-start: #ff9a9e; --bg-gradient-end: #fad0c4;
+            --card-bg-color: rgba(255, 255, 255, 0.65); --text-color: #4A4A4A;
+            --heading-color: #333; --muted-text-color: #888;
+            --primary-color: #ff6b6b; --primary-hover-color: #ff4757;
+            --success-color: #1dd1a1; --danger-color: #ff6b81;
+            --border-color: rgba(200, 210, 230, 0.5); --shadow-color: rgba(100, 100, 100, 0.15);
+            --card-backdrop-blur: 15px;
+        }
+        [data-theme="dark"] {
+            --bg-gradient-start: #2c3e50; --bg-gradient-end: #34495e;
+            --card-bg-color: rgba(44, 62, 80, 0.7); --text-color: #ecf0f1;
+            --heading-color: #ffffff; --muted-text-color: #bdc3c7;
+            --primary-color: #e74c3c; --primary-hover-color: #c0392b;
+            --border-color: rgba(255, 255, 255, 0.1); --shadow-color: rgba(0, 0, 0, 0.3);
+            --card-backdrop-blur: 20px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', 'Microsoft YaHei', sans-serif; }
+        body { background-image: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%); background-attachment: fixed; min-height: 100vh; padding: 2rem 1rem; display: flex; flex-direction: column; align-items: center; transition: background-image 0.5s, color 0.3s; color: var(--text-color); }
+        .container { width: 100%; max-width: 1200px; margin: 0 auto; }
+        header, .view-toggle-wrapper { display: none; }
+        body.admin-view header, body.admin-view .view-toggle-wrapper { display: block; text-align: center; }
+        body.admin-view header { margin-bottom: 2rem; color: white; animation: fadeInDown 0.5s; }
+        body.admin-view .view-toggle-wrapper { animation: fadeInDown 0.5s 0.2s backwards; }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        body.admin-view header h1 { font-size: 2.5rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        body.admin-view header .description { font-size: 1.1rem; opacity: 0.9; }
+        .view-toggle-wrapper { position: relative; display: flex; justify-content: center; margin-bottom: 2rem; background: var(--card-bg-color); border-radius: 50px; padding: 0.4rem; box-shadow: 0 4px 15px var(--shadow-color); backdrop-filter: blur(var(--card-backdrop-blur)); border: 1px solid var(--border-color); }
+        .view-toggle { display: flex; position: relative; }
+        .view-toggle button { padding: 0.8rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: var(--muted-text-color); border-radius: 50px; transition: color 0.3s ease; position: relative; z-index: 2; white-space: nowrap; }
+        .view-toggle button.active { color: white; }
+        .view-toggle .slider { position: absolute; top: 0; left: 0; height: 100%; background: var(--primary-color); border-radius: 50px; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+        .card { background: var(--card-bg-color); border-radius: 20px; box-shadow: 0 8px 32px 0 var(--shadow-color); backdrop-filter: blur(var(--card-backdrop-blur)); border: 1px solid var(--border-color); padding: 2.5rem; margin-bottom: 2rem; display: none; animation: fadeIn 0.5s ease-in-out; }
+        .card.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .card h2 { font-size: 1.8rem; color: var(--heading-color); margin-bottom: 0.5rem; }
+        .card > p { color: var(--muted-text-color); margin-bottom: 2rem; }
+        #studentView { display: block; }
+        body.admin-view #studentView { display: none; }
+        body.admin-view #dataView.active { display: block; }
+        #successView { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end)); color: white; flex-direction: column; justify-content: center; align-items: center; padding: 2rem; text-align: center; z-index: 3000; animation: fadeIn 0.5s; }
+        #successView .success-card { background: rgba(255,255,255,0.15); backdrop-filter: blur(20px); padding: 2rem; border-radius: 20px; width: 100%; max-width: 450px; box-shadow: 0 8px 32px 0 rgba(0,0,0,0.2); }
+        #successView .success-reg-id { background: var(--primary-color); color: white; font-size: clamp(2rem, 15vw, 4rem); font-weight: 700; padding: 1.5rem 1rem; border-radius: 15px; margin-bottom: 2rem; line-height: 1; }
+        #successView .success-info-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; text-align: left; }
+        #successView .success-info-item { background: rgba(255,255,255,0.1); padding: 0.8rem 1.2rem; border-radius: 10px; }
+        #successView .success-info-label { font-size: 0.9rem; opacity: 0.8; margin-bottom: 0.2rem; }
+        #successView .success-info-value { font-size: 1.2rem; font-weight: 600; }
+        #successView .success-time { margin-top: 2rem; font-size: 1rem; opacity: 0.9; }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-color); }
+        input[type="text"], input[type="password"], input[type="file"], input[type="url"], input[type="search"] { width: 100%; padding: 1rem; border: 1px solid var(--border-color); border-radius: 10px; font-size: 1rem; background-color: transparent; color: var(--text-color); transition: all 0.3s; }
+        input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent); outline: none; }
+        button { background: var(--primary-color); color: white; border: none; padding: 1rem 1.5rem; border-radius: 10px; cursor: pointer; font-size: 1rem; font-weight: 600; transition: all 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        button:hover { background: var(--primary-hover-color); transform: translateY(-2px); box-shadow: 0 4px 10px color-mix(in srgb, var(--primary-hover-color) 40%, transparent); }
+        button:disabled { background-color: var(--muted-text-color); cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-full { width: 100%; } .btn-success { background-color: var(--success-color); } .btn-success:hover { background-color: color-mix(in srgb, var(--success-color) 90%, black); } .btn-danger { background-color: var(--danger-color); } .btn-danger:hover { background-color: color-mix(in srgb, var(--danger-color) 90%, black); } .btn-secondary { background-color: #95a5a6; } .btn-secondary:hover { background-color: #7f8c8d; }
+        .theme-switcher { position: fixed; top: 20px; right: 20px; z-index: 1000; }
+        .theme-switcher button { background: var(--card-bg-color); color: var(--heading-color); border: 1px solid var(--border-color); width: 50px; height: 50px; border-radius: 50%; font-size: 1.2rem; box-shadow: 0 4px 10px var(--shadow-color); backdrop-filter: blur(var(--card-backdrop-blur)); }
+        .admin-entry { text-align: right; margin-top: 1rem; padding-right: 0.5rem; }
+        .admin-entry a { color: var(--muted-text-color); cursor: pointer; font-size: 0.9rem; text-decoration: none; }
+        .admin-entry a:hover { color: var(--primary-color); }
+        body.admin-view .admin-entry { display: none; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 2000; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal { background: var(--card-bg-color); padding: 2.5rem; border-radius: 20px; width: 90%; max-width: 500px; text-align: center; transform: scale(0.9); transition: transform 0.3s ease; border: 1px solid var(--border-color); }
+        .modal-overlay.active .modal { transform: scale(1); }
+        .modal h3 { font-size: 1.5rem; margin-bottom: 1rem; color: var(--heading-color); } .modal p { color: var(--text-color); margin-bottom: 2rem; } .modal-buttons { display: flex; justify-content: center; gap: 1rem; }
+        #adminLoginModal .form-group { text-align: left; }
+        .loader { width: 25px; height: 25px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        button .loader-wrapper { display: flex; align-items: center; justify-content: center; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem; } .info-item { text-align: left; padding: 1.2rem; background: var(--bg-color); border-radius: 10px; } .info-label { font-weight: 500; color: var(--muted-text-color); margin-bottom: 0.25rem; font-size: 0.9rem; } .info-value { font-weight: 600; color: var(--heading-color); font-size: 1.1rem; } .admin-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; } .admin-controls button { flex: 1; min-width: 150px; } .admin-search { position: relative; margin-bottom: 2rem; } .admin-search input { padding-left: 2.5rem; } .admin-search .fa-search { position: absolute; top: 50%; left: 1rem; transform: translateY(-50%); color: var(--muted-text-color); } .table-container { max-height: 400px; overflow-y: auto; } table { width: 100%; border-collapse: collapse; margin-top: 1rem; } th, td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border-color); } th { font-weight: 600; color: var(--heading-color); font-size: 0.9rem; text-transform: uppercase; } tr { transition: background-color 0.2s; } tbody tr:hover { background-color: color-mix(in srgb, var(--primary-color) 5%, transparent); } .status-badge { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 50px; font-size: 0.8rem; font-weight: 600; } .status-present { background: color-mix(in srgb, var(--success-color) 20%, transparent); color: var(--success-color); } .status-absent { background: color-mix(in srgb, var(--danger-color) 20%, transparent); color: var(--danger-color); } .instructions { background: var(--bg-color); padding: 1.5rem; border-radius: 10px; margin: 2rem 0; } .instructions h3 { margin-bottom: 1rem; color: var(--heading-color); } .instructions ol { margin-left: 1.5rem; color: var(--text-color); } .instructions li { margin-bottom: 0.5rem; } .file-upload { text-align: center; background: var(--bg-color); padding: 2rem; border-radius: 10px; border: 2px dashed var(--border-color); margin-bottom: 1.5rem; transition: border-color 0.3s, background-color 0.3s; } .file-upload.dragover { border-color: var(--primary-color); background-color: color-mix(in srgb, var(--primary-color) 10%, transparent); } .file-upload input[type="file"] { display: none; } .file-upload label { cursor: pointer; font-weight: 500; color: var(--primary-color); } .qrcode-container { text-align: center; margin: 2rem 0; padding: 1.5rem; background: white; border-radius: 10px; display: inline-block; } #qrcode canvas { border-radius: 5px; } .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; } .stat-card { background: var(--bg-color); padding: 1.5rem; border-radius: 15px; text-align: center; } .stat-card .chart { position: relative; width: 120px; height: 120px; margin: 0 auto 1rem; } .stat-card svg { width: 100%; height: 100%; transform: rotate(-90deg); } .stat-card circle { fill: none; stroke-width: 10; } .stat-card .bg-circle { stroke: var(--border-color); } .stat-card .progress-circle { stroke: var(--primary-color); stroke-linecap: round; transition: stroke-dashoffset 0.5s ease-out; } .stat-card .chart-percent { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.8rem; font-weight: 700; color: var(--heading-color); } .stat-card .stat-title { font-weight: 500; color: var(--muted-text-color); } .stat-card .stat-value { font-size: 1.5rem; font-weight: 600; color: var(--heading-color); }
+        @media (max-width: 768px) { body { padding: 1rem; } header h1 { font-size: 2rem; } .view-toggle button { padding: 0.6rem 1rem; font-size: 0.9rem; } .card { padding: 1.5rem; } .admin-controls { flex-direction: column; } }
+    </style>
+</head>
+<body data-theme="light">
+
+    <div class="theme-switcher">
+        <button id="themeToggleBtn"><i class="fas fa-moon"></i></button>
+    </div>
+
+    <div class="container" id="mainContainer">
+        <header>
+            <h1>智慧校园：新生签到系统</h1>
+            <p class="description">高效、直观、现代化的学生返校签到解决方案</p>
+        </header>
+        
+        <div class="view-toggle-wrapper">
+            <div class="view-toggle">
+                <span class="slider"></span>
+                <button id="dataViewBtn" class="active"><i class="fas fa-database"></i> 学生数据</button>
+                <button id="adminViewBtn"><i class="fas fa-chart-pie"></i> 管理面板</button>
+                <button id="qrcodeViewBtn"><i class="fas fa-qrcode"></i> 二维码生成</button>
+            </div>
+        </div>
+        
+        <div id="studentView" class="card">
+            <h2 style="text-align: center;"><i class="fas fa-user-check"></i> 欢迎同学返校</h2>
+            <p style="text-align: center;">请输入您的信息进行身份验证</p>
+            <div class="form-group"><label for="name">姓名</label><input type="text" id="name" placeholder="请输入您的姓名"></div>
+            <div class="form-group"><label for="idCard">身份证号</label><input type="text" id="idCard" placeholder="请输入您的身份证号码"></div>
+            <button id="verifyBtn" class="btn-full"><i class="fas fa-check-circle"></i> 立即验证并签到</button>
+            <div class="admin-entry"><a id="adminLoginLink">管理员入口 <i class="fas fa-user-shield"></i></a></div>
+        </div>
+
+        <div id="dataView" class="card">
+            <h2><i class="fas fa-file-excel"></i> 学生数据导入</h2><p>请按照说明准备并导入包含学生信息的Excel文件</p>
+            <div class="instructions"><h3><i class="fas fa-info-circle"></i> 使用说明</h3><ol><li>准备Excel文件，首行标题需包含：<strong>姓名</strong>, <strong>身份证号</strong>, <strong>报名号</strong>, <strong>专业</strong>, <strong>班号</strong></li><li>点击下方区域或拖拽文件上传</li></ol></div>
+            <div class="file-upload" id="dropZoneStudent"><input type="file" id="excelFile" accept=".xlsx, .xls"><label for="excelFile"><i class="fas fa-cloud-upload-alt"></i> 点击或拖拽学生Excel文件</label></div>
+            <div class="loader" id="parserLoader" style="margin:1rem auto; display:none;"></div>
+            <button id="saveDataBtn" class="btn-full btn-success" style="display: none;"><i class="fas fa-save"></i> 保存学生数据</button>
+            <div class="table-container" style="margin-top: 2rem;"><h3>数据预览（前5行）</h3><table id="previewTable"><thead><tr><th>姓名</th><th>身份证号</th><th>报名号</th><th>专业</th><th>班号</th></tr></thead><tbody id="previewBody"><tr><td colspan="5" style="text-align: center;">暂无数据</td></tr></tbody></table></div>
+        </div>
+        
+        <div id="adminView" class="card">
+            <h2><i class="fas fa-chalkboard-teacher"></i> 签到管理面板</h2><p>实时监控签到进度，管理学生数据</p>
+            <div class="admin-controls">
+                <button id="refreshBtn"><i class="fas fa-sync-alt"></i> 刷新数据</button>
+                <button id="exportBtn" class="btn-success"><i class="fas fa-download"></i> 导出签到记录</button>
+                <button id="clearDataBtn" class="btn-danger"><i class="fas fa-trash"></i> 清空所有数据</button>
+                <button id="logoutBtn" class="btn-secondary"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
+            </div>
+            <div class="stats-grid"><div class="stat-card"><div class="stat-title">应到人数</div><div class="stat-value" id="totalStudents">0</div></div><div class="stat-card"><div class="stat-title">已签到</div><div class="stat-value" id="presentStudents">0</div></div><div class="stat-card"><div class="stat-title">未签到</div><div class="stat-value" id="absentStudents">0</div></div><div class="stat-card"><div class="chart"><div class="chart-percent" id="attendanceRatePercent">0%</div><svg viewBox="0 0 100 100"><circle class="bg-circle" cx="50" cy="50" r="45"></circle><circle id="attendanceRateCircle" class="progress-circle" cx="50" cy="50" r="45" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"></circle></svg></div><div class="stat-title">签到率</div></div></div>
+            <h3>学生签到列表</h3><div class="admin-search"><i class="fas fa-search"></i><input type="search" id="searchInput" placeholder="按姓名或报名号搜索..."></div>
+            <div class="table-container"><table><thead><tr><th>姓名</th><th>报名号</th><th>专业</th><th>班号</th><th>签到时间</th><th>状态</th></tr></thead><tbody id="attendanceList"></tbody></table></div>
+        </div>
+        
+        <div id="qrcodeView" class="card">
+            <h2><i class="fas fa-qrcode"></i> 签到页面二维码生成</h2><p>为学生生成签到页面的访问二维码，方便扫码进入</p>
+            <div class="instructions"><h3><i class="fas fa-cogs"></i> 使用说明</h3><ol><li>将本HTML文件部署到可公开访问的服务器（如GitHub Pages）。</li><li>将页面的公开URL地址粘贴到下方输入框。</li><li>点击生成，即可获得可供学生扫描的二维码。</li></ol></div>
+            <div class="form-group"><label for="pageUrl">签到页面URL地址</label><input type="url" id="pageUrl" placeholder="https://your-username.github.io/check-in/index.html"></div>
+            <button id="generateQrBtn" class="btn-full"><i class="fas fa-barcode"></i> 生成二维码</button>
+            <div id="qrcodeResult" style="text-align: center; margin-top: 2rem; display: none;"><div class="qrcode-container"><div id="qrcode"></div></div><p style="margin-top: 1rem; color: var(--muted-text-color);">右键或长按图片即可保存</p><button id="downloadQrBtn" style="margin-top: 1rem;"><i class="fas fa-download"></i> 下载二维码PNG</button></div>
+        </div>
+    </div>
+
+    <div id="successView">
+        <div class="success-card">
+            <div class="success-reg-id" id="successRegId"></div>
+            <div class="success-info-grid">
+                <div class="success-info-item"><div class="success-info-label">姓名</div><div class="success-info-value" id="successName"></div></div>
+                <div class="success-info-item"><div class="success-info-label">班号</div><div class="success-info-value" id="successClassId"></div></div>
+                <div class="success-info-item"><div class="success-info-label">专业</div><div class="success-info-value" id="successMajor"></div></div>
+                <div class="success-info-item"><div class="success-info-label">身份证号</div><div class="success-info-value" id="successIdCard"></div></div>
+            </div>
+            <div class="success-time"><i class="fas fa-check-circle"></i> 报道时间: <span id="successTime"></span></div>
+        </div>
+    </div>
+
+    <div id="modal" class="modal-overlay">
+        <div class="modal"><h3 id="modalTitle">提示</h3><p id="modalMessage">这是一条提示信息。</p><div class="modal-buttons"><button id="modalConfirmBtn" class="btn-success">确定</button><button id="modalCancelBtn" class="btn-danger" style="display: none;">取消</button></div></div>
+    </div>
+
+    <div id="adminLoginModal" class="modal-overlay">
+        <div class="modal"><h3><i class="fas fa-user-shield"></i> 管理员登录</h3><p>请输入您的管理员凭据</p>
+            <div class="form-group"><label for="adminUsername">用户名</label><input type="text" id="adminUsername" placeholder="admin"></div>
+            <div class="form-group"><label for="adminPassword">密码</label><input type="password" id="adminPassword" placeholder="123456"></div>
+            <div class="modal-buttons">
+                <button id="adminLoginCancelBtn" class="btn-secondary">取消</button>
+                <button id="adminLoginSubmitBtn" class="btn-success">
+                    <span class="btn-text">登录</span>
+                    <div class="loader-wrapper"><div class="loader"></div></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态变量
+        let students = JSON.parse(localStorage.getItem('students')) || [];
+        let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+        let excelData = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners(); // 统一设置所有事件监听
+            initView();
+            initTheme();
+        });
+        
+        // **统一的事件监听设置**
+        function setupEventListeners() {
+            // 学生视图
+            document.getElementById('verifyBtn').addEventListener('click', verifyStudent);
+            document.getElementById('adminLoginLink').addEventListener('click', () => adminLoginModal.show());
+
+            // 管理员登录模态框
+            document.getElementById('adminLoginCancelBtn').addEventListener('click', () => adminLoginModal.hide());
+            document.getElementById('adminLoginSubmitBtn').addEventListener('click', handleAdminLogin);
+
+            // 管理员后台
+            document.querySelectorAll('.view-toggle button').forEach(btn => btn.addEventListener('click', handleViewSwitch));
+            document.getElementById('excelFile').addEventListener('change', parseExcelFile);
+            document.getElementById('saveDataBtn').addEventListener('click', saveStudentData);
+            document.getElementById('refreshBtn').addEventListener('click', () => updateAdminView());
+            document.getElementById('exportBtn').addEventListener('click', exportData);
+            document.getElementById('clearDataBtn').addEventListener('click', () => {
+                 modal.show('危险操作', '您确定要清空所有学生和签到数据吗？<br><strong>此操作不可恢复！</strong>', 'confirm', clearAllData);
+            });
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+            document.getElementById('searchInput').addEventListener('input', (e) => updateAdminView(e.target.value.trim()));
+            document.getElementById('generateQrBtn').addEventListener('click', generateQRCode);
+            document.getElementById('downloadQrBtn').addEventListener('click', downloadQRCode);
+
+            // 通用
+            document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+        }
+
+        function initView() {
+            if (sessionStorage.getItem('isAdminAuthenticated') === 'true') {
+                showAdminInterface();
+            } else {
+                showStudentInterface();
+            }
+        }
+
+        function showStudentInterface() {
+            document.body.classList.remove('admin-view');
+        }
+
+        function showAdminInterface() {
+            document.body.classList.add('admin-view');
+            setupViewSwitcher();
+            updateAdminView();
+            document.getElementById('dataViewBtn').click(); // 默认显示数据页
+        }
+
+        function handleAdminLogin() {
+            const username = document.getElementById('adminUsername').value.trim();
+            const password = document.getElementById('adminPassword').value;
+            const submitBtn = document.getElementById('adminLoginSubmitBtn');
+            const btnText = submitBtn.querySelector('.btn-text');
+            const loader = submitBtn.querySelector('.loader');
+
+            if (!username || !password) { modal.show('输入错误', '用户名和密码不能为空。'); return; }
+
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            submitBtn.disabled = true;
+
+            setTimeout(() => { // 模拟网络延迟
+                if (username === 'admin' && password === '123456') {
+                    sessionStorage.setItem('isAdminAuthenticated', 'true');
+                    adminLoginModal.hide();
+                    modal.show('登录成功', '欢迎回来，管理员！', 'alert', showAdminInterface);
+                } else {
+                    modal.show('登录失败', '用户名或密码错误。');
+                }
+                btnText.style.display = 'inline-block';
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+            }, 500);
+        }
+
+        function logout() {
+            sessionStorage.removeItem('isAdminAuthenticated');
+            window.location.reload();
+        }
+
+        function verifyStudent() {
+            const name = document.getElementById('name').value.trim();
+            const idCard = document.getElementById('idCard').value.trim();
+            if (!name || !idCard) { modal.show('输入错误', '请输入您的姓名和身份证号'); return; }
+            const student = students.find(s => s.name === name && s.idCard === idCard);
+            if (student) {
+                if (attendanceRecords.find(record => record.studentId === student.studentId)) {
+                    modal.show('重复签到', '您已经签到过了，无需重复操作。'); return;
+                }
+                const now = new Date();
+                const signInTime = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                attendanceRecords.push({ studentId: student.studentId, name: student.name, major: student.major, classId: student.classId, time: signInTime });
+                localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+                document.getElementById('successRegId').textContent = student.studentId;
+                document.getElementById('successName').textContent = student.name;
+                document.getElementById('successClassId').textContent = student.classId || '未分配';
+                document.getElementById('successMajor').textContent = student.major;
+                document.getElementById('successIdCard').textContent = student.idCard.replace(/^(.{6})(?:\d+)(.{4})$/, "$1********$2");
+                document.getElementById('successTime').textContent = signInTime;
+                document.getElementById('mainContainer').style.display = 'none';
+                document.getElementById('successView').style.display = 'flex';
+            } else { modal.show('验证失败', '未找到匹配的学生信息，请检查姓名和身份证号是否正确。'); }
+        }
+
+        // --- 以下是后台功能函数 ---
+        
+        function handleViewSwitch(event) {
+            const button = event.currentTarget;
+            const viewId = button.id.replace('Btn', '');
+            document.querySelectorAll('.card').forEach(card => card.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            document.querySelectorAll('.view-toggle button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            updateSlider(button);
+            if (viewId === 'adminView') updateAdminView();
+        }
+
+        function setupViewSwitcher() {
+            const activeButton = document.querySelector('.view-toggle button.active') || document.getElementById('dataViewBtn');
+            updateSlider(activeButton);
+        }
+
+        function updateSlider(button) {
+            const slider = document.querySelector('.view-toggle .slider');
+            if (button && slider) {
+                slider.style.width = `${button.offsetWidth}px`;
+                slider.style.left = `${button.offsetLeft}px`;
+            }
+        }
+
+        function parseExcelFile(event) {
+            const file = event.target.files[0];
+            const loader = document.getElementById('parserLoader');
+            if (!file) { return; }
+            loader.style.display = 'block';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    excelData = XLSX.utils.sheet_to_json(worksheet);
+                    if (excelData.length === 0) throw new Error('Excel文件中没有找到数据');
+                    showDataPreview(excelData);
+                    document.getElementById('saveDataBtn').style.display = 'block';
+                } catch (err) { modal.show('解析错误', `文件解析失败: ${err.message}`); } finally { loader.style.display = 'none'; }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showDataPreview(data) {
+            const previewBody = document.getElementById('previewBody');
+            previewBody.innerHTML = '';
+            const previewData = data.slice(0, 5);
+            if (previewData.length === 0) { previewBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">文件中无有效数据</td></tr>'; return; }
+            previewData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${row.姓名 || ''}</td><td>${row.身份证号 || ''}</td><td>${row.报名号 || ''}</td><td>${row.专业 || ''}</td><td>${row.班号 || ''}</td>`;
+                previewBody.appendChild(tr);
+            });
+            if (data.length > 5) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="5" style="text-align: center;">... 还有 ${data.length - 5} 行数据未显示</td>`;
+                previewBody.appendChild(tr);
+            }
+        }
+
+        function saveStudentData() {
+            if (excelData.length === 0) { modal.show('提示', '没有数据可以保存'); return; }
+            students = excelData.map(item => ({ name: item.姓名 || '', idCard: String(item.身份证号 || ''), studentId: String(item.报名号 || ''), major: item.专业 || '', classId: String(item.班号 || '') })).filter(s => s.name && s.idCard);
+            localStorage.setItem('students', JSON.stringify(students));
+            modal.show('成功', `成功导入并保存了 ${students.length} 条学生数据。`);
+            updateAdminView();
+        }
+
+        function clearAllData() {
+            students = []; attendanceRecords = []; excelData = [];
+            localStorage.removeItem('students'); localStorage.removeItem('attendanceRecords');
+            document.getElementById('previewBody').innerHTML = '<tr><td colspan="5" style="text-align: center;">暂无数据</td></tr>';
+            document.getElementById('saveDataBtn').style.display = 'none';
+            updateAdminView();
+            modal.show('操作成功', '所有学生相关数据已清空。');
+        }
+
+        function updateAdminView(searchTerm = '') {
+            const total = students.length; const present = attendanceRecords.length; const absent = total - present; const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+            document.getElementById('totalStudents').textContent = total; document.getElementById('presentStudents').textContent = present; document.getElementById('absentStudents').textContent = absent; document.getElementById('attendanceRatePercent').textContent = `${rate}%`;
+            const circle = document.getElementById('attendanceRateCircle');
+            circle.style.strokeDashoffset = 100 - rate;
+            const listBody = document.getElementById('attendanceList'); listBody.innerHTML = '';
+            if (total === 0) { listBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">请先到“学生数据”页面导入信息</td></tr>'; return; }
+            const filteredStudents = students.filter(s => s.name.includes(searchTerm) || s.studentId.includes(searchTerm));
+            if (filteredStudents.length === 0) { listBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">没有找到匹配的学生</td></tr>'; return; }
+            filteredStudents.sort((a,b) => (attendanceRecords.find(r=>r.studentId===b.studentId)?1:0) - (attendanceRecords.find(r=>r.studentId===a.studentId)?1:0));
+            filteredStudents.forEach(student => {
+                const record = attendanceRecords.find(r => r.studentId === student.studentId);
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${student.name}</td><td>${student.studentId}</td><td>${student.major}</td><td>${student.classId || 'N/A'}</td><td>${record ? record.time : '—'}</td><td><span class="status-badge ${record ? 'status-present' : 'status-absent'}">${record ? '已签到' : '未签到'}</span></td>`;
+                listBody.appendChild(row);
+            });
+        }
+        
+        function exportData() {
+            if (students.length === 0) { modal.show('提示', '没有学生数据可导出。'); return; }
+            const dataToExport = students.map(student => {
+                const record = attendanceRecords.find(r => r.studentId === student.studentId);
+                return { '姓名': student.name, '报名号': student.studentId, '专业': student.major, '班号': student.classId || 'N/A', '签到状态': record ? '已签到' : '未签到', '签到时间': record ? record.time : '' };
+            });
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "签到总览");
+            XLSX.writeFile(workbook, "学生签到总览表.xlsx");
+        }
+        
+        function generateQRCode() {
+            const url = document.getElementById('pageUrl').value.trim() || window.location.href.split('?')[0].split('#')[0];
+            if (!url) { modal.show('错误', '无法获取页面URL地址。'); return; }
+            document.getElementById('qrcode').innerHTML = '';
+            new QRCode(document.getElementById('qrcode'), { text: url, width: 200, height: 200, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
+            document.getElementById('qrcodeResult').style.display = 'block';
+        }
+
+        function downloadQRCode() {
+            const canvas = document.querySelector('#qrcode canvas');
+            if (!canvas) { modal.show('提示', '请先生成二维码。'); return; }
+            const link = document.createElement('a'); link.download = '签到二维码.png'; link.href = canvas.toDataURL('image/png'); link.click();
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+            document.getElementById('themeToggleBtn').innerHTML = savedTheme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+        }
+
+        function toggleTheme() {
+            const newTheme = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            document.body.setAttribute('data-theme', newTheme); localStorage.setItem('theme', newTheme);
+            document.getElementById('themeToggleBtn').innerHTML = newTheme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+        }
+
+        const modal = {
+            el: document.getElementById('modal'),
+            show: function(title, message, type = 'alert', onConfirm = () => {}, onCancel = () => {}) {
+                this.el.querySelector('#modalTitle').textContent = title;
+                this.el.querySelector('#modalMessage').innerHTML = message;
+                const cancelBtn = this.el.querySelector('#modalCancelBtn');
+                cancelBtn.style.display = (type === 'confirm') ? 'inline-flex' : 'none';
+                this.el.classList.add('active');
+                this.el.querySelector('#modalConfirmBtn').onclick = () => { onConfirm(); this.hide(); };
+                cancelBtn.onclick = () => { onCancel(); this.hide(); };
+            },
+            hide: function() { this.el.classList.remove('active'); }
+        };
+
+        const adminLoginModal = {
+            el: document.getElementById('adminLoginModal'),
+            show: function() { this.el.classList.add('active'); },
+            hide: function() { this.el.classList.remove('active'); }
+        };
+    </script>
+</body>
+</html>
