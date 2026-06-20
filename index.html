@@ -8,6 +8,7 @@
   <!-- Excel 解析与二维码生成：需要联网，正式现场建议改为本地内置或后端方案 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root {
@@ -306,7 +307,7 @@
       background: rgba(255,255,255,.35);
     }
 
-    table { width: 100%; border-collapse: collapse; min-width: 860px; }
+    table { width: 100%; border-collapse: collapse; min-width: 1040px; }
     th, td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; vertical-align: middle; }
     th { color: var(--muted); font-size: 13px; background: rgba(15,23,42,.03); white-space: nowrap; }
     tr:last-child td { border-bottom: 0; }
@@ -426,7 +427,7 @@
       .top-actions { flex-wrap: wrap; justify-content: flex-end; }
       .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
       .panel-head { display: block; }
-      table { min-width: 780px; }
+      table { min-width: 980px; }
     }
 
     @media (max-width: 520px) {
@@ -499,7 +500,7 @@
         <div class="panel-head">
           <div>
             <h2>学生数据导入</h2>
-            <p>支持列名：姓名、身份证号、报名号、专业、班号。也兼容“身份证/证件号、报名编号、班级”等常见写法。</p>
+            <p>支持列名：姓名、身份证号、报名号、专业、班号、手机号。也兼容“电话/联系方式、身份证/证件号、报名编号、班级”等常见写法。</p>
           </div>
           <button id="downloadTemplateBtn" class="ghost" type="button">下载模板</button>
         </div>
@@ -522,11 +523,11 @@
           <table>
             <thead>
               <tr>
-                <th>姓名</th><th>身份证号</th><th>报名号</th><th>专业</th><th>班号</th><th>检查</th>
+                <th>姓名</th><th>身份证号</th><th>报名号</th><th>专业</th><th>班号</th><th>手机号</th><th>检查</th>
               </tr>
             </thead>
             <tbody id="previewBody">
-              <tr><td colspan="6">暂无预览</td></tr>
+              <tr><td colspan="7">暂无预览</td></tr>
             </tbody>
           </table>
         </div>
@@ -536,7 +537,7 @@
         <div class="panel-head">
           <div>
             <h2>签到管理面板</h2>
-            <p>可以查看签到进度、按姓名/报名号/专业/班号搜索、老师代签、撤销签到并导出记录。</p>
+            <p>可以查看签到进度、按姓名/报名号/专业/班号/手机号搜索，跟进未到学生联系状态，并导出记录。</p>
           </div>
           <button id="logoutBtn" class="ghost" type="button">退出管理员</button>
         </div>
@@ -549,11 +550,12 @@
         </div>
 
         <div class="toolbar">
-          <input id="searchInput" class="search" placeholder="搜索姓名 / 报名号 / 专业 / 班号 / 状态" />
-          <select id="statusFilter" style="max-width: 160px;">
+          <input id="searchInput" class="search" placeholder="搜索姓名 / 报名号 / 专业 / 班号 / 手机号 / 联系状态" />
+          <select id="statusFilter" style="max-width: 190px;">
             <option value="all">全部状态</option>
             <option value="present">只看已签到</option>
             <option value="absent">只看未签到</option>
+            <option value="uncontacted">未到且未联系</option>
           </select>
           <button id="refreshBtn" class="ghost" type="button">刷新</button>
           <button id="exportBtn" class="btn-green" type="button">导出签到表</button>
@@ -565,11 +567,11 @@
           <table>
             <thead>
               <tr>
-                <th>状态</th><th>姓名</th><th>报名号</th><th>专业</th><th>班号</th><th>身份证号</th><th>签到时间</th><th>方式</th><th>操作</th>
+                <th>状态</th><th>姓名</th><th>报名号</th><th>专业</th><th>班号</th><th>手机号</th><th>联系状态</th><th>签到时间</th><th>方式</th><th>操作</th>
               </tr>
             </thead>
             <tbody id="attendanceBody">
-              <tr><td colspan="9">暂无数据</td></tr>
+              <tr><td colspan="10">暂无数据</td></tr>
             </tbody>
           </table>
         </div>
@@ -597,7 +599,7 @@
 
       <section id="panelSettings" class="panel">
         <h2>系统设置</h2>
-        <p>地理位置限制需要 HTTPS 或 localhost 才能生效。经纬度不确定时请先关闭，正式版建议由后端校验。</p>
+        <p>地理位置限制需要 HTTPS 或 localhost 才能生效。云端模式需要先在 Supabase 建表，正式报到建议使用云端模式。</p>
 
         <div class="grid grid-2">
           <div>
@@ -627,15 +629,39 @@
             <label for="adminPasswordSetting">管理员密码（仅本机保存，非安全后端）</label>
             <input id="adminPasswordSetting" type="password" placeholder="默认 123456" />
           </div>
+          <div>
+            <label for="cloudEnabled">数据同步模式</label>
+            <select id="cloudEnabled">
+              <option value="false">本机演示模式</option>
+              <option value="true">Supabase 云端模式</option>
+            </select>
+          </div>
+          <div>
+            <label for="supabaseUrl">Supabase Project URL</label>
+            <input id="supabaseUrl" placeholder="https://xxxx.supabase.co" />
+          </div>
+          <div>
+            <label for="supabaseAnonKey">Supabase anon public key</label>
+            <input id="supabaseAnonKey" placeholder="eyJhbGciOi..." />
+          </div>
+          <div>
+            <label for="studentsTable">学生表名</label>
+            <input id="studentsTable" placeholder="freshman_students" />
+          </div>
+          <div>
+            <label for="recordsTable">签到表名</label>
+            <input id="recordsTable" placeholder="freshman_records" />
+          </div>
         </div>
 
         <div class="toolbar">
           <button id="saveSettingsBtn" class="btn-green" type="button">保存设置</button>
+          <button id="testCloudBtn" class="ghost" type="button">检查云端连接</button>
           <button id="resetSettingsBtn" class="ghost" type="button">恢复默认</button>
         </div>
 
-        <div class="health">
-          安全说明：前端 HTML 里的管理员登录只能防误点，不能当作真正权限系统。正式上线必须把学生数据、签到记录、管理员账号放到后端或云数据库。
+        <div id="cloudHealth" class="health">
+          云端未启用。当前数据只保存在本机浏览器，适合演示和单机值守。
         </div>
       </section>
     </section>
@@ -677,12 +703,18 @@
       geoEnabled: false,
       schoolLat: "",
       schoolLng: "",
-      geoRadius: 1000
+      geoRadius: 1000,
+      cloudEnabled: false,
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+      studentsTable: "freshman_students",
+      recordsTable: "freshman_records"
     };
 
     const state = loadState();
     let importPreview = [];
     let pendingModalOk = null;
+    let supabaseClient = null;
 
     const $ = (id) => document.getElementById(id);
 
@@ -690,7 +722,7 @@
       try {
         const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
         return {
-          students: Array.isArray(saved.students) ? saved.students : [],
+          students: Array.isArray(saved.students) ? saved.students.map(normalizeStudent) : [],
           records: Array.isArray(saved.records) ? saved.records : [],
           settings: { ...DEFAULT_SETTINGS, ...(saved.settings || {}) }
         };
@@ -702,6 +734,19 @@
     function saveState() {
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
       updateNoDataNotice();
+    }
+
+    function normalizeStudent(stu) {
+      return {
+        name: stu.name || "",
+        idCard: stu.idCard || "",
+        regNo: stu.regNo || "",
+        major: stu.major || "",
+        classNo: stu.classNo || "",
+        phone: stu.phone || "",
+        contactStatus: stu.contactStatus || "未联系",
+        contactNote: stu.contactNote || ""
+      };
     }
 
     function nowText() {
@@ -728,6 +773,61 @@
       return "";
     }
 
+    function contactStatusOf(stu) {
+      return stu.contactStatus || "未联系";
+    }
+
+    function mapStudentFromCloud(row) {
+      return normalizeStudent({
+        name: row.name,
+        idCard: row.id_card,
+        regNo: row.reg_no,
+        major: row.major,
+        classNo: row.class_no,
+        phone: row.phone,
+        contactStatus: row.contact_status,
+        contactNote: row.contact_note
+      });
+    }
+
+    function mapStudentToCloud(stu) {
+      return {
+        student_key: safeStudentKey(stu),
+        name: stu.name,
+        id_card: stu.idCard,
+        reg_no: stu.regNo,
+        major: stu.major,
+        class_no: stu.classNo,
+        phone: stu.phone,
+        contact_status: contactStatusOf(stu),
+        contact_note: stu.contactNote || "",
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    function mapRecordFromCloud(row) {
+      return {
+        studentKey: row.student_key,
+        name: row.name,
+        regNo: row.reg_no,
+        time: row.time,
+        method: row.method,
+        operator: row.operator
+      };
+    }
+
+    function mapRecordToCloud(record) {
+      return {
+        student_key: record.studentKey,
+        name: record.name,
+        reg_no: record.regNo,
+        time: record.time,
+        method: record.method,
+        operator: record.operator,
+        updated_at: new Date().toISOString()
+      };
+    }
+
     function maskIdCard(id) {
       const s = String(id || "");
       if (s.length <= 8) return s ? "****" : "";
@@ -741,6 +841,115 @@
     function findRecord(stu) {
       const key = safeStudentKey(stu);
       return state.records.find(r => r.studentKey === key);
+    }
+
+    function isCloudEnabled() {
+      return Boolean(
+        state.settings.cloudEnabled &&
+        state.settings.supabaseUrl &&
+        state.settings.supabaseAnonKey
+      );
+    }
+
+    function getSupabaseClient() {
+      if (!isCloudEnabled()) return null;
+      if (!window.supabase) {
+        throw new Error("Supabase 组件加载失败，请确认网络可访问 jsDelivr。");
+      }
+      if (!supabaseClient) {
+        supabaseClient = window.supabase.createClient(
+          state.settings.supabaseUrl,
+          state.settings.supabaseAnonKey
+        );
+      }
+      return supabaseClient;
+    }
+
+    async function loadCloudData({ silent = false } = {}) {
+      if (!isCloudEnabled()) {
+        updateCloudHealth("云端未启用。当前数据只保存在本机浏览器，适合演示和单机值守。");
+        return;
+      }
+
+      const client = getSupabaseClient();
+      const studentsTable = state.settings.studentsTable || DEFAULT_SETTINGS.studentsTable;
+      const recordsTable = state.settings.recordsTable || DEFAULT_SETTINGS.recordsTable;
+
+      const [studentsRes, recordsRes] = await Promise.all([
+        client.from(studentsTable).select("*").order("class_no", { ascending: true }).order("name", { ascending: true }),
+        client.from(recordsTable).select("*")
+      ]);
+
+      if (studentsRes.error) throw studentsRes.error;
+      if (recordsRes.error) throw recordsRes.error;
+
+      state.students = (studentsRes.data || []).map(mapStudentFromCloud);
+      state.records = (recordsRes.data || []).map(mapRecordFromCloud);
+      saveState();
+      renderDashboard();
+      updateNoDataNotice();
+      updateCloudHealth(`云端已连接：已同步 ${state.students.length} 名学生、${state.records.length} 条签到记录。`);
+      if (!silent) {
+        openModal("云端同步成功", `已读取 ${state.students.length} 名学生和 ${state.records.length} 条签到记录。`, { hideCancel: true });
+      }
+    }
+
+    async function syncStudentToCloud(stu) {
+      if (!isCloudEnabled()) return;
+      const client = getSupabaseClient();
+      const { error } = await client
+        .from(state.settings.studentsTable || DEFAULT_SETTINGS.studentsTable)
+        .upsert(mapStudentToCloud(stu), { onConflict: "student_key" });
+      if (error) throw error;
+    }
+
+    async function syncRecordToCloud(record) {
+      if (!isCloudEnabled()) return;
+      const client = getSupabaseClient();
+      const { error } = await client
+        .from(state.settings.recordsTable || DEFAULT_SETTINGS.recordsTable)
+        .upsert(mapRecordToCloud(record), { onConflict: "student_key" });
+      if (error) throw error;
+    }
+
+    async function deleteRecordFromCloud(stu) {
+      if (!isCloudEnabled()) return;
+      const client = getSupabaseClient();
+      const { error } = await client
+        .from(state.settings.recordsTable || DEFAULT_SETTINGS.recordsTable)
+        .delete()
+        .eq("student_key", safeStudentKey(stu));
+      if (error) throw error;
+    }
+
+    async function replaceCloudRoster(students) {
+      if (!isCloudEnabled()) return;
+      const client = getSupabaseClient();
+      const studentsTable = state.settings.studentsTable || DEFAULT_SETTINGS.studentsTable;
+      const recordsTable = state.settings.recordsTable || DEFAULT_SETTINGS.recordsTable;
+      const clearRecords = await client.from(recordsTable).delete().neq("student_key", "__never__");
+      if (clearRecords.error) throw clearRecords.error;
+      const clearStudents = await client.from(studentsTable).delete().neq("student_key", "__never__");
+      if (clearStudents.error) throw clearStudents.error;
+      if (students.length) {
+        const upsertStudents = await client.from(studentsTable).upsert(students.map(mapStudentToCloud), { onConflict: "student_key" });
+        if (upsertStudents.error) throw upsertStudents.error;
+      }
+    }
+
+    async function clearCloudRecords() {
+      if (!isCloudEnabled()) return;
+      const client = getSupabaseClient();
+      const { error } = await client
+        .from(state.settings.recordsTable || DEFAULT_SETTINGS.recordsTable)
+        .delete()
+        .neq("student_key", "__never__");
+      if (error) throw error;
+    }
+
+    function updateCloudHealth(text) {
+      const el = $("cloudHealth");
+      if (el) el.textContent = text;
     }
 
     function setAdminMode(on) {
@@ -853,6 +1062,7 @@
           operator: "学生本人"
         };
         state.records.push(record);
+        await syncRecordToCloud(record);
         saveState();
         showSuccess(stu, record, false);
       } catch (err) {
@@ -938,7 +1148,8 @@
               idCard: getValue(row, ["身份证号", "身份证", "证件号", "身份证号码"]),
               regNo: getValue(row, ["报名号", "报名编号", "报考号", "学生编号", "学号"]),
               major: getValue(row, ["专业", "录取专业", "报读专业"]),
-              classNo: getValue(row, ["班号", "班级", "班级号"])
+              classNo: getValue(row, ["班号", "班级", "班级号"]),
+              phone: getValue(row, ["手机号", "手机", "电话", "联系电话", "联系方式", "家长电话"])
             };
             const missing = [];
             if (!stu.name) missing.push("姓名");
@@ -981,14 +1192,14 @@
       body.innerHTML = "";
       const rows = importPreview.slice(0, 12);
       if (!rows.length) {
-        body.innerHTML = "<tr><td colspan=\"6\">暂无预览</td></tr>";
+        body.innerHTML = "<tr><td colspan=\"7\">暂无预览</td></tr>";
         return;
       }
       rows.forEach(stu => {
         const tr = document.createElement("tr");
-        [stu.name, maskIdCard(stu.idCard), stu.regNo, stu.major, stu.classNo, stu.status].forEach((v, i) => {
+        [stu.name, maskIdCard(stu.idCard), stu.regNo, stu.major, stu.classNo, stu.phone, stu.status].forEach((v, i) => {
           const td = document.createElement("td");
-          if (i === 5) {
+          if (i === 6) {
             const badge = document.createElement("span");
             badge.className = `badge ${v === "通过" ? "ok" : "warn"}`;
             badge.textContent = v;
@@ -1003,7 +1214,7 @@
       if (importPreview.length > rows.length) {
         const tr = document.createElement("tr");
         const td = document.createElement("td");
-        td.colSpan = 6;
+        td.colSpan = 7;
         td.textContent = `仅预览前 12 行，剩余 ${importPreview.length - rows.length} 行未显示。`;
         tr.appendChild(td);
         body.appendChild(tr);
@@ -1016,7 +1227,10 @@
         idCard: s.idCard,
         regNo: s.regNo,
         major: s.major,
-        classNo: s.classNo
+        classNo: s.classNo,
+        phone: s.phone,
+        contactStatus: "未联系",
+        contactNote: ""
       }));
 
       if (!valid.length) {
@@ -1024,7 +1238,15 @@
         return;
       }
 
-      confirmModal("确认保存", `将保存 ${valid.length} 名学生。保存后会覆盖原学生数据，并清空旧签到记录，是否继续？`, () => {
+      confirmModal("确认保存", `将保存 ${valid.length} 名学生。保存后会覆盖原学生数据，并清空旧签到记录，是否继续？`, async () => {
+        try {
+          if (isCloudEnabled()) {
+            await replaceCloudRoster(valid);
+          }
+        } catch (err) {
+          openModal("云端保存失败", err.message || "无法写入 Supabase，请检查表名、权限和网络。", { hideCancel: true });
+          return;
+        }
         state.students = valid;
         state.records = [];
         saveState();
@@ -1052,10 +1274,12 @@
       let rows = state.students.map(stu => ({ stu, record: findRecord(stu) }));
       if (status === "present") rows = rows.filter(x => x.record);
       if (status === "absent") rows = rows.filter(x => !x.record);
+      if (status === "uncontacted") rows = rows.filter(x => !x.record && contactStatusOf(x.stu) === "未联系");
       if (q) {
         rows = rows.filter(({ stu, record }) => {
           const hay = [
-            stu.name, stu.regNo, stu.major, stu.classNo, stu.idCard,
+            stu.name, stu.regNo, stu.major, stu.classNo, stu.idCard, stu.phone,
+            contactStatusOf(stu), stu.contactNote,
             record ? "已签到" : "未签到",
             record ? record.method : ""
           ].join(" ").toLowerCase();
@@ -1071,7 +1295,7 @@
       });
 
       if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="9">${total ? "没有匹配结果" : "暂无学生数据，请先导入 Excel"}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="10">${total ? "没有匹配结果" : "暂无学生数据，请先导入 Excel"}</td></tr>`;
         return;
       }
 
@@ -1082,7 +1306,8 @@
         appendCell(tr, stu.regNo);
         appendCell(tr, stu.major);
         appendCell(tr, stu.classNo || "—");
-        appendCell(tr, maskIdCard(stu.idCard));
+        appendPhoneCell(tr, stu.phone);
+        appendContactCell(tr, stu);
         appendCell(tr, record ? record.time : "—");
         appendCell(tr, record ? record.method : "—");
 
@@ -1117,6 +1342,49 @@
       tr.appendChild(td);
     }
 
+    function appendPhoneCell(tr, phone) {
+      const td = document.createElement("td");
+      const clean = normalizeText(phone);
+      if (clean) {
+        const link = document.createElement("a");
+        link.href = `tel:${clean}`;
+        link.textContent = phone;
+        link.style.color = "var(--primary)";
+        link.style.fontWeight = "800";
+        td.appendChild(link);
+      } else {
+        td.textContent = "—";
+      }
+      tr.appendChild(td);
+    }
+
+    function appendContactCell(tr, stu) {
+      const td = document.createElement("td");
+      const select = document.createElement("select");
+      select.style.minWidth = "120px";
+      ["未联系", "已联系", "电话未接", "请假", "稍后到"].forEach(status => {
+        const option = document.createElement("option");
+        option.value = status;
+        option.textContent = status;
+        select.appendChild(option);
+      });
+      select.value = contactStatusOf(stu);
+      select.addEventListener("change", () => updateContactStatus(stu, select.value));
+      td.appendChild(select);
+      tr.appendChild(td);
+    }
+
+    async function updateContactStatus(stu, status) {
+      stu.contactStatus = status;
+      saveState();
+      try {
+        await syncStudentToCloud(stu);
+      } catch (err) {
+        openModal("联系状态未同步", err.message || "本机已保存，但云端同步失败。", { hideCancel: true });
+      }
+      renderDashboard();
+    }
+
     function makeSmallButton(text, cls, fn) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -1128,24 +1396,35 @@
     }
 
     function proxySign(stu) {
-      confirmModal("老师代签确认", `确认由老师为 ${stu.name} 代签？系统会记录“老师代签”。`, () => {
-        state.records.push({
+      confirmModal("老师代签确认", `确认由老师为 ${stu.name} 代签？系统会记录“老师代签”。`, async () => {
+        const record = {
           studentKey: safeStudentKey(stu),
           name: stu.name,
           regNo: stu.regNo,
           time: nowText(),
           method: "老师代签",
           operator: "管理员"
-        });
+        };
+        state.records.push(record);
+        try {
+          await syncRecordToCloud(record);
+        } catch (err) {
+          openModal("代签未同步", err.message || "本机已保存，但云端同步失败。", { hideCancel: true });
+        }
         saveState();
         renderDashboard();
       });
     }
 
     function cancelRecord(stu) {
-      confirmModal("撤销签到", `确认撤销 ${stu.name} 的签到记录？`, () => {
+      confirmModal("撤销签到", `确认撤销 ${stu.name} 的签到记录？`, async () => {
         const key = safeStudentKey(stu);
         state.records = state.records.filter(r => r.studentKey !== key);
+        try {
+          await deleteRecordFromCloud(stu);
+        } catch (err) {
+          openModal("撤销未同步", err.message || "本机已撤销，但云端同步失败。", { hideCancel: true });
+        }
         saveState();
         renderDashboard();
       });
@@ -1158,16 +1437,20 @@
           { id: "editIdCard", label: "身份证号", value: stu.idCard },
           { id: "editRegNo", label: "报名号", value: stu.regNo },
           { id: "editMajor", label: "专业", value: stu.major },
-          { id: "editClassNo", label: "班号", value: stu.classNo }
+          { id: "editClassNo", label: "班号", value: stu.classNo },
+          { id: "editPhone", label: "手机号", value: stu.phone },
+          { id: "editContactNote", label: "联系备注", value: stu.contactNote }
         ],
         okText: "保存修改",
-        onOk: () => {
+        onOk: async () => {
           const oldKey = safeStudentKey(stu);
           stu.name = $("editName").value.trim();
           stu.idCard = $("editIdCard").value.trim();
           stu.regNo = $("editRegNo").value.trim();
           stu.major = $("editMajor").value.trim();
           stu.classNo = $("editClassNo").value.trim();
+          stu.phone = $("editPhone").value.trim();
+          stu.contactNote = $("editContactNote").value.trim();
 
           const newKey = safeStudentKey(stu);
           state.records.forEach(r => {
@@ -1178,6 +1461,11 @@
             }
           });
           saveState();
+          try {
+            await syncStudentToCloud(stu);
+          } catch (err) {
+            openModal("学生信息未同步", err.message || "本机已保存，但云端同步失败。", { hideCancel: true });
+          }
           renderDashboard();
         }
       });
@@ -1201,10 +1489,13 @@
           "报名号": stu.regNo,
           "专业": stu.major,
           "班号": stu.classNo,
+          "手机号": stu.phone,
           "签到状态": record ? "已签到" : "未签到",
           "签到时间": record ? record.time : "",
           "签到方式": record ? record.method : "",
-          "操作人": record ? record.operator : ""
+          "操作人": record ? record.operator : "",
+          "联系状态": contactStatusOf(stu),
+          "联系备注": stu.contactNote || ""
         };
       });
 
@@ -1220,7 +1511,7 @@
         return;
       }
       const data = [
-        { "姓名": "张三", "身份证号": "110101200808081234", "报名号": "A001", "专业": "汽车维修", "班号": "汽修2501" }
+        { "姓名": "张三", "身份证号": "110101200808081234", "报名号": "A001", "专业": "汽车维修", "班号": "汽修2501", "手机号": "13800000000" }
       ];
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -1265,6 +1556,14 @@
       $("schoolLng").value = state.settings.schoolLng || "";
       $("geoRadius").value = state.settings.geoRadius || 1000;
       $("adminPasswordSetting").value = state.settings.adminPassword || DEFAULT_SETTINGS.adminPassword;
+      $("cloudEnabled").value = String(Boolean(state.settings.cloudEnabled));
+      $("supabaseUrl").value = state.settings.supabaseUrl || "";
+      $("supabaseAnonKey").value = state.settings.supabaseAnonKey || "";
+      $("studentsTable").value = state.settings.studentsTable || DEFAULT_SETTINGS.studentsTable;
+      $("recordsTable").value = state.settings.recordsTable || DEFAULT_SETTINGS.recordsTable;
+      updateCloudHealth(isCloudEnabled()
+        ? "云端模式已启用。保存设置后可点击“检查云端连接”同步数据。"
+        : "云端未启用。当前数据只保存在本机浏览器，适合演示和单机值守。");
     }
 
     function saveSettings() {
@@ -1274,13 +1573,37 @@
       state.settings.schoolLng = $("schoolLng").value.trim();
       state.settings.geoRadius = Number($("geoRadius").value || 1000);
       state.settings.adminPassword = $("adminPasswordSetting").value || DEFAULT_SETTINGS.adminPassword;
+      state.settings.cloudEnabled = $("cloudEnabled").value === "true";
+      state.settings.supabaseUrl = $("supabaseUrl").value.trim();
+      state.settings.supabaseAnonKey = $("supabaseAnonKey").value.trim();
+      state.settings.studentsTable = $("studentsTable").value.trim() || DEFAULT_SETTINGS.studentsTable;
+      state.settings.recordsTable = $("recordsTable").value.trim() || DEFAULT_SETTINGS.recordsTable;
+      supabaseClient = null;
       saveState();
       openModal("设置已保存", "系统设置已经保存到当前浏览器。", { hideCancel: true });
+      fillSettingsForm();
+    }
+
+    async function testCloudConnection() {
+      try {
+        saveSettings();
+        if (!isCloudEnabled()) {
+          openModal("云端未启用", "请先选择 Supabase 云端模式，并填写 Project URL 与 anon public key。", { hideCancel: true });
+          return;
+        }
+        updateCloudHealth("正在连接 Supabase 并同步数据……");
+        await loadCloudData({ silent: true });
+        openModal("云端连接正常", `已同步 ${state.students.length} 名学生、${state.records.length} 条签到记录。`, { hideCancel: true });
+      } catch (err) {
+        updateCloudHealth(`云端连接失败：${err.message || err}`);
+        openModal("云端连接失败", err.message || "请检查 Supabase URL、anon key、表名和 RLS 权限。", { hideCancel: true });
+      }
     }
 
     function resetSettings() {
       confirmModal("恢复默认设置", "确认恢复默认设置？学生数据和签到记录不会被删除。", () => {
         state.settings = { ...DEFAULT_SETTINGS };
+        supabaseClient = null;
         saveState();
         fillSettingsForm();
       });
@@ -1322,7 +1645,13 @@
     }
 
     function clearRecords() {
-      confirmModal("清空签到记录", "确认只清空签到记录？学生名单会保留。", () => {
+      confirmModal("清空签到记录", "确认只清空签到记录？学生名单会保留。", async () => {
+        try {
+          await clearCloudRecords();
+        } catch (err) {
+          openModal("云端清空失败", err.message || "无法清空云端签到记录。", { hideCancel: true });
+          return;
+        }
         state.records = [];
         saveState();
         renderDashboard();
@@ -1330,7 +1659,13 @@
     }
 
     function clearAll() {
-      confirmModal("清空全部数据", "确认清空学生名单、签到记录和导入预览？此操作不可恢复。", () => {
+      confirmModal("清空全部数据", "确认清空学生名单、签到记录和导入预览？此操作不可恢复。", async () => {
+        try {
+          await replaceCloudRoster([]);
+        } catch (err) {
+          openModal("云端清空失败", err.message || "无法清空云端学生名单。", { hideCancel: true });
+          return;
+        }
         state.students = [];
         state.records = [];
         importPreview = [];
@@ -1391,6 +1726,7 @@
       $("makeQrBtn").addEventListener("click", generateQr);
       $("downloadQrBtn").addEventListener("click", downloadQr);
       $("saveSettingsBtn").addEventListener("click", saveSettings);
+      $("testCloudBtn").addEventListener("click", testCloudConnection);
       $("resetSettingsBtn").addEventListener("click", resetSettings);
 
       $("modalCancel").addEventListener("click", closeModal);
@@ -1404,13 +1740,22 @@
       });
     }
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       initTheme();
       bindEvents();
       updateNoDataNotice();
       $("qrUrl").value = location.href.split("#")[0].split("?")[0];
       setAdminMode(sessionStorage.getItem("freshman_checkin_admin") === "true");
       renderPreview();
+      if (isCloudEnabled()) {
+        try {
+          await loadCloudData({ silent: true });
+        } catch (err) {
+          updateCloudHealth(`云端自动同步失败：${err.message || err}`);
+        }
+      } else {
+        updateCloudHealth("云端未启用。当前数据只保存在本机浏览器，适合演示和单机值守。");
+      }
     });
   </script>
 </body>
