@@ -704,9 +704,9 @@
       schoolLat: "",
       schoolLng: "",
       geoRadius: 1000,
-      cloudEnabled: false,
-      supabaseUrl: "",
-      supabaseAnonKey: "",
+      cloudEnabled: true,
+      supabaseUrl: "https://jfgivjmobfwngmjubbhu.supabase.co",
+      supabaseAnonKey: "sb_publishable_c6C1qu9KfsxYOBZhhNv0Ew_uyHJWEsb",
       studentsTable: "freshman_students",
       recordsTable: "freshman_records"
     };
@@ -774,7 +774,8 @@
     }
 
     function contactStatusOf(stu) {
-      return stu.contactStatus || "未联系";
+      const status = stu.contactStatus || "未联系";
+      return status === "uncontacted" ? "未联系" : status;
     }
 
     function mapStudentFromCloud(row) {

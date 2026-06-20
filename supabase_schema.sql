@@ -6,7 +6,7 @@ create table if not exists public.freshman_students (
   major text,
   class_no text,
   phone text,
-  contact_status text default '未联系',
+  contact_status text default 'uncontacted',
   contact_note text default '',
   updated_at timestamptz default now()
 );
